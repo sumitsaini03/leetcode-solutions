@@ -1,24 +1,35 @@
 import os
 import shutil
 
-topics = {
-    "two-sum": "Arrays",
-    "maximum-depth-of-binary-tree": "Trees",
-    "same-tree": "Trees",
-    "reverse-linked-list": "LinkedList",
-    "merge-two-sorted-lists": "LinkedList",
-    "valid-parentheses": "Stack",
+# Keywords -> Folder
+topic_map = {
+    "tree": "Trees",
+    "binary-tree": "Trees",
+    "bst": "BST",
+    "graph": "Graphs",
+    "array": "Arrays",
+    "string": "Strings",
+    "linked-list": "LinkedList",
+    "stack": "Stack",
+    "queue": "Queue",
+    "heap": "Heap",
+    "trie": "Tries",
     "binary-search": "BinarySearch",
+    "backtracking": "Backtracking",
+    "greedy": "Greedy",
+    "dynamic-programming": "DynamicProgramming",
+    "bit-manipulation": "BitManipulation"
 }
 
 for item in os.listdir():
     if os.path.isdir(item):
-        name = item.lower()
+        lower_name = item.lower()
 
-        for problem, topic in topics.items():
-            if problem in name:
-                destination = os.path.join(topic, item)
+        for key, folder in topic_map.items():
+            if key in lower_name:
+                destination = os.path.join(folder, item)
 
                 if not os.path.exists(destination):
                     shutil.move(item, destination)
-                    print(f"Moved {item} -> {topic}")
+                    print(f"Moved {item} -> {folder}")
+                break
