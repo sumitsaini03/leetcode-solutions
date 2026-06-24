@@ -1,8 +1,10 @@
 import os
 import shutil
-import requests
+import json
+import urllib.request
 
-query = """
+# GraphQL query to fetch topic tags for a LeetCode problem by its title slug
+QUERY = """
 query getQuestionDetail($titleSlug: String!) {
   question(titleSlug: $titleSlug) {
     topicTags {
@@ -12,7 +14,8 @@ query getQuestionDetail($titleSlug: String!) {
 }
 """
 
-topic_map = {
+# Map LeetCode topic slugs to local folder names
+TOPIC_MAP = {
     "array": "Arrays",
     "string": "Strings",
     "hash-table": "Hashing",
@@ -28,40 +31,86 @@ topic_map = {
     "backtracking": "Backtracking",
     "dynamic-programming": "DynamicProgramming",
     "bit-manipulation": "BitManipulation",
-    "trie": "Tries"
+    "trie": "Tries",
 }
 
-for folder in os.listdir():
-    if not os.path.isdir(folder):
-        continue
 
-    if folder in topic_map.values():
-        continue
+def fetch_tags(slug):
+    """Fetch topic tags for a LeetCode problem using its title slug.
 
-    slug = folder.split("-",1)[-1]
+    Uses the standard library `urllib` so the script works on any Python
+    install without extra dependencies. Returns a list of tag slugs, or
+    None if the request failed or the problem wasn't found.
+    """
+    payload = json.dumps({
+        "query": QUERY,
+        "variables": {"titleSlug": slug},
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://leetcode.com/graphql",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "leetcode-organizer/1.0",
+        },
+        method="POST",
+    )
 
     try:
-        response = requests.post(
-            "https://leetcode.com/graphql",
-            json={
-                "query": query,
-                "variables": {"titleSlug": slug}
-            }
-        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8")
+    except Exception as e:
+        print(f"  network error for {slug}: {e}")
+        return None
 
-        tags = response.json()["data"]["question"]["topicTags"]
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError as e:
+        print(f"  invalid JSON for {slug}: {e}")
+        return None
 
-        if not tags:
+    question = data.get("data", {}).get("question")
+    if not question:
+        return None
+
+    return [t["slug"] for t in question.get("topicTags", [])]
+
+
+def main():
+    existing_topic_dirs = set(TOPIC_MAP.values())
+    moved = 0
+    skipped = 0
+
+    for entry in os.listdir():
+        if not os.path.isdir(entry):
+            continue
+        if entry in existing_topic_dirs:
             continue
 
-        tag = tags[0]["slug"]
+        slug = entry.split("-", 1)[-1]
+        print(f"Checking: {entry} (slug={slug})")
 
-        if tag in topic_map:
-            destination = os.path.join(topic_map[tag], folder)
+        tags = fetch_tags(slug)
+        if not tags:
+            print(f"  no tags, skipping")
+            skipped += 1
+            continue
 
-            if not os.path.exists(destination):
-                shutil.move(folder, destination)
-                print(folder, "->", topic_map[tag])
+        for tag in tags:
+            if tag in TOPIC_MAP:
+                destination = os.path.join(TOPIC_MAP[tag], entry)
+                if not os.path.exists(destination):
+                    shutil.move(entry, destination)
+                    print(f"  moved: {entry} -> {TOPIC_MAP[tag]}")
+                    moved += 1
+                break
+        else:
+            print(f"  no matching topic for tags {tags}, skipping")
+            skipped += 1
 
-    except:
-        pass
+    print(f"\nDone. Moved {moved} folder(s), skipped {skipped}.")
+
+
+if __name__ == "__main__":
+    main()
